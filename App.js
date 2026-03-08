@@ -351,6 +351,9 @@ const AlertDashboardComponent = ({ onBack, token }) => {
     // State for Clear History Confirmation
     const [showClearConfirm, setShowClearConfirm] = useState(false);
 
+    // NEW: State for Delete Rule Confirmation Modal
+    const [deleteRuleModal, setDeleteRuleModal] = useState({ isOpen: false, id: null });
+
     // NEW: Ref to store IDs of cleared logs to prevent them from reappearing
     const ignoredHistoryIdsRef = useRef(new Set());
 
@@ -373,7 +376,7 @@ const AlertDashboardComponent = ({ onBack, token }) => {
         fetchData();
         const interval = setInterval(fetchData, 5000);
         return () => clearInterval(interval);
-    }, [token]); // Removed ignoredHistoryIdsRef to prevent loops
+    }, [token]); 
 
     const fetchData = async () => {
         try {
@@ -408,18 +411,24 @@ const AlertDashboardComponent = ({ onBack, token }) => {
         }
     };
 
-    // --- Handlers ---
-    const handleDeleteRule = async (ruleId) => {
-        if (!window.confirm("Confirm deletion of Alert Rule Protocol?")) return;
-        
+    // --- UPDATED: Handle Delete Rule (Opens Modal) ---
+    const handleDeleteRule = (ruleId) => {
+        setDeleteRuleModal({ isOpen: true, id: ruleId });
+    };
+
+    // --- NEW: Handle Confirm Delete Rule (Actual API Call) ---
+    const handleConfirmDeleteRule = async () => {
+        const { id } = deleteRuleModal;
+        if (!id) return;
+
         try {
-            const res = await fetch(`http://localhost:8000/alerts/rules/${ruleId}`, {
+            const res = await fetch(`http://localhost:8000/alerts/rules/${id}`, {
                 method: "DELETE",
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
             if (res.ok) {
-                setRules(prev => prev.filter(r => r.id !== ruleId));
+                setRules(prev => prev.filter(r => r.id !== id));
                 if(window.showToast) window.showToast("Protocol Deleted", "success");
             } else {
                 const errData = await res.json().catch(() => ({}));
@@ -428,6 +437,8 @@ const AlertDashboardComponent = ({ onBack, token }) => {
         } catch (e) {
             console.error(e);
             if(window.showToast) window.showToast(e.message || "Network error", "error");
+        } finally {
+            setDeleteRuleModal({ isOpen: false, id: null });
         }
     };
 
@@ -519,8 +530,6 @@ const AlertDashboardComponent = ({ onBack, token }) => {
             if(window.showToast) window.showToast("Network error while creating rule", "error");
         }
     };
-
-// ... rest of App.js
 
     const resetForm = () => {
         setFormData({
@@ -972,7 +981,7 @@ const AlertDashboardComponent = ({ onBack, token }) => {
                     )}
                 </div>
 
-                {/* Confirm Modal */}
+                {/* Confirm Modal for Clearing History */}
                 <ConfirmModal
                     isOpen={showClearConfirm}
                     onClose={() => setShowClearConfirm(false)}
@@ -993,9 +1002,19 @@ const AlertDashboardComponent = ({ onBack, token }) => {
             {view === 'create-rule' && renderCreateRuleView()}
             {view === 'active-alerts' && renderActiveAlertsView()}
             {view === 'history' && renderHistoryView()}
+            
+            {/* NEW: PROFESSIONAL DELETE RULE MODAL */}
+            <ConfirmModal
+                isOpen={deleteRuleModal.isOpen}
+                onClose={() => setDeleteRuleModal({ isOpen: false, id: null })}
+                onConfirm={handleConfirmDeleteRule}
+                title="Delete Alert Protocol"
+                message="Are you sure you want to permanently remove this Alert Rule Protocol? This action cannot be undone."
+            />
         </div>
     );
 };
+
 // ================= GLOBAL TOAST SYSTEM =================
 const ToastContainer = () => {
     const [toasts, setToasts] = useState([]);
